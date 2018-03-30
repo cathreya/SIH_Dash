@@ -20,6 +20,24 @@ from flask_migrate import Migrate
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+
+from watson_developer_cloud import NaturalLanguageUnderstandingV1
+from watson_developer_cloud.natural_language_understanding_v1 \
+  import Features, EntitiesOptions, KeywordsOptions
+
+
+natural_language_understanding = NaturalLanguageUnderstandingV1(
+  username='734e8bd1-6584-4e84-b09a-4481a4346001',
+  password='YCucKqbTfGCG',
+  version='2018-03-16')
+
+{
+  "url": "https://gateway.watsonplatform.net/natural-language-understanding/api",
+  "username": "734e8bd1-6584-4e84-b09a-4481a4346001",
+  "password": "YCucKqbTfGCG"
+}
+
+
 app = Flask(__name__)
 app.config.from_object('config')
 
