@@ -34,6 +34,8 @@ tweetEmbedder = TwitterOEmbedder(app,cache,100)
 # ,"ReutersTech","TechCrunch","Variety","THR","DEADLINE"]
 
 accounts = ["IndiaToday", "TimesNow", "ndtv", "htTweets", "CNNnews18", "timesofindia", "the_hindu", "abpnewstv", "IndianExpress", "ZeeNews", "aajtak", "DDNewsLive"]
+# accounts=["DDNewsLive","IndiaToday"]
+
 currentlyDisplayed = 0
 # THIS PART HANDLES THE DB CONFIGURATION
 class Tweet(db.Model):
@@ -47,31 +49,34 @@ class Tweet(db.Model):
 
 
 def getTweets(username):
-	tweets = tweepy_api.user_timeline(screen_name = username, count=2)
+	print("Getting From {}".format(username))
+	tweets = tweepy_api.user_timeline(screen_name = username, count=4)
 	# for t in tweets:
 	# 	returnList.append({"tweet":t.text,
 	# 						"created_at":t.created_at,
 	# 						"username":username,
 	# 						"headshot_url":t.user.profile_image_url
 	# 					})
+	print(len(tweets))
 	for tweet in tweets:
 		t = Tweet(tweetID=tweet.id)
-		if Tweet.query.filter_by(tweetID = tweet.id) == None:
+		if (Tweet.query.filter_by(tweetID = tweet.id).first() is None):
 			db.session.add(t)
-			
-
+			print("Accepted {}".format(tweet.id))
 
 	db.session.commit()
 
 def pull():
+	print("Pulling Tweets...")
 	for account in accounts:
 		getTweets(account)
 	
 	
 def readTweets():
+	print("Reading Tweets from DB")
 	global currentlyDisplayed
 	tweets = []
-	for t in db.session.query(Tweet.tweetID).order_by(Tweet.time)[currentlyDisplayed:currentlyDisplayed+5]:
+	for t in db.session.query(Tweet.tweetID).order_by(Tweet.time.desc())[currentlyDisplayed:currentlyDisplayed+5]:
 		tweets.append(t[0])
 		# print(t[0])
 	shuffle(tweets)
@@ -83,7 +88,7 @@ scheduler = BackgroundScheduler()
 scheduler.start()
 scheduler.add_job(
     func=pull,
-    trigger=IntervalTrigger(minutes=10),
+    trigger=IntervalTrigger(minutes=60),
     id='pullTweets',
     name='Pull Tweets every 10 minutes',
     replace_existing=True)
