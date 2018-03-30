@@ -6,6 +6,12 @@ import tweepy
 import time
 import atexit
 from datetime import datetime
+from bs4 import BeautifulSoup
+from bs4.element import Comment
+import urllib.request
+import re
+import os
+
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -33,7 +39,7 @@ tweetEmbedder = TwitterOEmbedder(app,cache,100)
 # accounts = ["HRDMinistry","PMOindia","FinMinIndia","HMOIndia"
 # ,"ReutersTech","TechCrunch","Variety","THR","DEADLINE"]
 
-accounts = ["IndiaToday", "TimesNow", "ndtv", "htTweets", "CNNnews18", "timesofindia", "the_hindu", "abpnewstv", "IndianExpress", "ZeeNews", "aajtak", "DDNewsLive"]
+accuonts = ["IndiaToday", "TimesNow", "ndtv", "htTweets", "CNNnews18", "timesofindia", "the_hindu", "abpnewstv", "IndianExpress", "ZeeNews", "aajtak", "DDNewsLive"]
 # accounts=["DDNewsLive","IndiaToday"]
 
 currentlyDisplayed = 0
@@ -46,6 +52,11 @@ class Tweet(db.Model):
 	def __repr__(self):
 		return '<Tweet ID {} Time {}>'.format(self.tweetID,self.time)    
 
+class Trending(db.Model):
+	id = db.Column(db.Integer, primary_key=True)
+	hashtag = db.Column(db.String, index=True, unique=True)
+	time = db.Column(db.DateTime(timezone=False), index=True, default = datetime.utcnow)
+	
 
 
 def getTweets(username):
@@ -84,6 +95,47 @@ def readTweets():
 	return tweets
 
 
+
+def tag_visible(element):
+    if element.parent.name in ['style', 'script', 'head', 'title', 'meta', '[document]']:
+        return False
+    if isinstance(element, Comment):
+        return False
+    return True
+
+
+def text_from_html(url):
+    html = urllib.request.urlopen(url).read()
+    soup = BeautifulSoup(html, 'html.parser')
+    texts = soup.findAll(text=True)
+    visible_texts = filter(tag_visible, texts)
+    para = u" ".join(t.strip() for t in visible_texts)
+    para = para.split()
+    hashtag = set()
+    for word in para:
+        if word[0] == "#":
+            hashtag.add(word)
+    return hashtag
+
+
+def pullTrending():
+	hashtagList = text_from_html("https://trends24.in/india/")
+	for hashtag in hashtagList:
+		t = Trending(hashtag=hashtag)
+		if (Trending.query.filter_by(hashtag=hashtag).first() is None):
+			db.session.add(t)
+			print("Accepted {}".format(hashtag))
+	db.session.commit()		
+
+def getTrending():
+	trends = []
+	for t in db.session.query(Trending.hashtag).order_by(Trending.time.desc()):
+		trends.append(t[0])
+		# print(t[0])
+	return trends	
+
+
+
 scheduler = BackgroundScheduler()
 scheduler.start()
 scheduler.add_job(
@@ -96,12 +148,21 @@ scheduler.add_job(
 atexit.register(lambda: scheduler.shutdown())
 
 
+# https://twitter.com/search?q=%23CBSEPaperLeakExpose&src=tyah
+
+
 @app.route('/')
 def index():
 	# pull()
 	tweets = readTweets()
+	# pullTrending()
+	trending = getTrending()
+	trendings = []
+	for i in trending:
+		trendings.append((i,"https://twitter.com/search?q=%23{}&src=tyah".format(i[1:])))
+
 	print(tweets)
-	return render_template("page.html",tweets=tweets)
+	return render_template("page.html",tweets=tweets,trending = trendings)
 
 @app.route('/update',methods = ["POST"])
 def update():
@@ -115,3 +176,5 @@ def loadMore():
 	print("LM CALLED")
 	tweets = readTweets()
 	return jsonify({'data': render_template('update.html', tweets=tweets)})
+
+	
